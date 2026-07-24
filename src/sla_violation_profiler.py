@@ -20,10 +20,6 @@ import util
 logger = logging.getLogger(__name__)
 
 
-def _effective_severity(value: str | None) -> str:
-    return value or 'UNKNOWN'
-
-
 def filter_rescorings_before_release_date(
     finding: odg.model.ArtefactMetadata,
     rescorings: list[odg.model.ArtefactMetadata],
@@ -63,7 +59,7 @@ def iter_policy_violations(
                     cve=finding.data.cve,
                 ),
                 referenced_type=odg.model.Datatype.VULNERABILITY_FINDING,
-                severity=_effective_severity(rescoring.data.severity),
+                severity=rescoring.data.severity,
                 artefact=finding.artefact,
             )
         if rescoring.data.due_date:
@@ -75,7 +71,7 @@ def iter_policy_violations(
             deadline = discovery_date + allowed_time
 
     if deadline and deadline < release_date:
-        effective_severity = (
+        severity = (
             sorted_rescorings[-1].data.severity if sorted_rescorings else finding.data.severity
         )
         yield odg.model.SlaViolation(
@@ -84,7 +80,7 @@ def iter_policy_violations(
                 cve=finding.data.cve,
             ),
             referenced_type=odg.model.Datatype.VULNERABILITY_FINDING,
-            severity=_effective_severity(effective_severity),
+            severity=severity,
             artefact=finding.artefact,
         )
 
