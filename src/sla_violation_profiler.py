@@ -52,7 +52,7 @@ def iter_policy_violations(
 
     for rescoring in sorted_rescorings:
         rescoring_creation_date = util.normalise_date(rescoring.meta.creation_date)
-        if deadline and rescoring_creation_date > deadline:
+        if deadline and rescoring_creation_date.date() > deadline.date():
             yield odg.model.SlaViolation(
                 finding=odg.model.RescoringVulnerabilityFinding(
                     package_name=finding.data.package_name,
