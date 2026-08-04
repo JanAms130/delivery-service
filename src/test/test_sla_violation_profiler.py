@@ -75,10 +75,11 @@ def test_violation_when_rescoring_happens_after_deadline(test_data):
 
     assert len(violations) == 1
     assert violations[0].severity == 'NONE'
-    assert len(violations[0].trace) == 2
+    assert len(violations[0].trace) == 3
     assert violations[0].trace[0].event_type == 'finding_discovered'
-    assert violations[0].trace[1].event_type == 'violation_rescoring_after_deadline'
-    assert violations[0].trace[1].date.date() == datetime.date(2025, 3, 1)
+    assert violations[0].trace[1].event_type == 'rescoring'
+    assert violations[0].trace[2].event_type == 'violation_rescoring_after_deadline'
+    assert violations[0].trace[2].date.date() == datetime.date(2025, 3, 1)
 
 
 def test_rescoring_filtered_out_when_created_after_release(test_data):

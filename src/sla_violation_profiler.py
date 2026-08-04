@@ -66,6 +66,34 @@ def iter_policy_violations(
     for rescoring in sorted_rescorings:
         rescoring_creation_date = util.normalise_date(rescoring.meta.creation_date)
 
+        if rescoring.data.due_date:
+            new_deadline = util.normalise_date(rescoring.data.due_date)
+        elif rescoring.data.allowed_processing_time is None:
+            new_deadline = None
+        else:
+            allowed_time = util.convert_to_timedelta(rescoring.data.allowed_processing_time)
+            new_deadline = discovery_date + allowed_time
+
+        if new_deadline is not None:
+            rescoring_comment = (
+                f'Rescoring by {rescoring.data.user.username} on '
+                f'{rescoring_creation_date.date()} updated deadline to {new_deadline.date()}'
+            )
+        else:
+            rescoring_comment = (
+                f'Rescoring by {rescoring.data.user.username} on '
+                f'{rescoring_creation_date.date()} waived the deadline'
+            )
+        trace.append(
+            odg.model.SlaViolationTraceEntry(
+                event_type='rescoring',
+                date=rescoring_creation_date,
+                severity=rescoring.data.severity,
+                deadline=new_deadline,
+                comment=rescoring_comment,
+            ),
+        )
+
         if deadline and rescoring_creation_date.date() > deadline.date():
             trace.append(
                 odg.model.SlaViolationTraceEntry(
@@ -91,33 +119,7 @@ def iter_policy_violations(
                 trace=list(trace),
             )
 
-        if rescoring.data.due_date:
-            deadline = util.normalise_date(rescoring.data.due_date)
-        elif rescoring.data.allowed_processing_time is None:
-            deadline = None
-        else:
-            allowed_time = util.convert_to_timedelta(rescoring.data.allowed_processing_time)
-            deadline = discovery_date + allowed_time
-
-        if deadline is not None:
-            rescoring_comment = (
-                f'Rescoring by {rescoring.data.user.username} on '
-                f'{rescoring_creation_date.date()} updated deadline to {deadline.date()}'
-            )
-        else:
-            rescoring_comment = (
-                f'Rescoring by {rescoring.data.user.username} on '
-                f'{rescoring_creation_date.date()} waived the deadline'
-            )
-        trace.append(
-            odg.model.SlaViolationTraceEntry(
-                event_type='rescoring',
-                date=rescoring_creation_date,
-                severity=rescoring.data.severity,
-                deadline=deadline,
-                comment=rescoring_comment,
-            ),
-        )
+        deadline = new_deadline
 
     if deadline and deadline.date() < release_date.date():
         severity = (
