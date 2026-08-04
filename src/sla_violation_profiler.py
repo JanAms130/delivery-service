@@ -52,7 +52,7 @@ def iter_policy_violations(
 
     trace: list[odg.model.SlaViolationTraceEntry] = [
         odg.model.SlaViolationTraceEntry(
-            event_type='finding_discovered',
+            event_type=odg.model.SlaViolationTraceEventType.FINDING_DISCOVERED,
             date=discovery_date,
             severity=finding.data.severity,
             deadline=deadline,
@@ -74,40 +74,44 @@ def iter_policy_violations(
             allowed_time = util.convert_to_timedelta(rescoring.data.allowed_processing_time)
             new_deadline = discovery_date + allowed_time
 
-        if new_deadline is not None:
+        is_late = bool(deadline and rescoring_creation_date.date() > deadline.date())
+
+        if is_late:
+            event_type = odg.model.SlaViolationTraceEventType.VIOLATION_RESCORING_AFTER_DEADLINE
+            rescoring_comment = (
+                f'Rescoring by {rescoring.data.user.username} on '
+                f'{rescoring_creation_date.date()} was submitted after '
+                f'deadline {deadline.date()}'
+            )
+        elif new_deadline is not None and new_deadline != deadline:
+            event_type = odg.model.SlaViolationTraceEventType.RESCORING
             rescoring_comment = (
                 f'Rescoring by {rescoring.data.user.username} on '
                 f'{rescoring_creation_date.date()} updated deadline to {new_deadline.date()}'
             )
+        elif new_deadline is not None:
+            event_type = odg.model.SlaViolationTraceEventType.RESCORING
+            rescoring_comment = (
+                f'Rescoring by {rescoring.data.user.username} on '
+                f'{rescoring_creation_date.date()} did not change the deadline'
+            )
         else:
+            event_type = odg.model.SlaViolationTraceEventType.RESCORING
             rescoring_comment = (
                 f'Rescoring by {rescoring.data.user.username} on '
                 f'{rescoring_creation_date.date()} waived the deadline'
             )
         trace.append(
             odg.model.SlaViolationTraceEntry(
-                event_type='rescoring',
+                event_type=event_type,
                 date=rescoring_creation_date,
                 severity=rescoring.data.severity,
-                deadline=new_deadline,
+                deadline=deadline if is_late else new_deadline,
                 comment=rescoring_comment,
             ),
         )
 
-        if deadline and rescoring_creation_date.date() > deadline.date():
-            trace.append(
-                odg.model.SlaViolationTraceEntry(
-                    event_type='violation_rescoring_after_deadline',
-                    date=rescoring_creation_date,
-                    severity=rescoring.data.severity,
-                    deadline=deadline,
-                    comment=(
-                        f'Rescoring by {rescoring.data.user.username} on '
-                        f'{rescoring_creation_date.date()} was submitted after '
-                        f'deadline {deadline.date()}'
-                    ),
-                ),
-            )
+        if is_late:
             yield odg.model.SlaViolation(
                 finding=odg.model.RescoringVulnerabilityFinding(
                     package_name=finding.data.package_name,
@@ -127,12 +131,12 @@ def iter_policy_violations(
         )
         trace.append(
             odg.model.SlaViolationTraceEntry(
-                event_type='violation_release_after_deadline',
+                event_type=odg.model.SlaViolationTraceEventType.VIOLATION_RELEASE_AFTER_DEADLINE,
                 date=release_date,
                 severity=severity,
                 deadline=deadline,
                 comment=(
-                    f'Software was released on {release_date.date()} after '
+                    f'Component was released on {release_date.date()} after '
                     f'deadline {deadline.date()} had already passed'
                 ),
             ),
