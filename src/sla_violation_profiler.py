@@ -153,12 +153,36 @@ def iter_policy_violations(
         )
 
 
+def _deduplicate_findings(
+    findings: list[odg.model.ArtefactMetadata],
+) -> list[odg.model.ArtefactMetadata]:
+    seen: dict[tuple, odg.model.ArtefactMetadata] = {}
+    for finding in findings:
+        key = (
+            finding.artefact.component_name,
+            finding.artefact.artefact.artefact_name if finding.artefact.artefact else None,
+            finding.artefact.artefact.artefact_type if finding.artefact.artefact else None,
+            finding.data.package_name,
+            finding.data.cve,
+        )
+        existing = seen.get(key)
+        if existing is None:
+            seen[key] = finding
+        else:
+            existing_date = util.normalise_date(existing.discovery_date)
+            candidate_date = util.normalise_date(finding.discovery_date)
+            if candidate_date < existing_date:
+                seen[key] = finding
+    return list(seen.values())
+
+
 def iter_version_sla_violations(
     findings: list[odg.model.ArtefactMetadata],
     rescorings: list[odg.model.ArtefactMetadata],
     release_date: datetime.datetime,
 ) -> collections.abc.Generator[odg.model.SlaViolation, None, None]:
     release_date = util.normalise_date(release_date)
+    findings = _deduplicate_findings(findings)
     for finding in findings:
         if util.normalise_date(finding.meta.creation_date) > release_date:
             continue
