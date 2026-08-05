@@ -74,8 +74,8 @@ def iter_policy_violations(
             allowed_time = util.convert_to_timedelta(rescoring.data.allowed_processing_time)
             new_deadline = discovery_date + allowed_time
 
-        is_rescoring_after_deadline = bool(
-            deadline and rescoring_creation_date.date() > deadline.date(),
+        is_rescoring_after_deadline = (
+            deadline is not None and rescoring_creation_date.date() > deadline.date()
         )
 
         if is_rescoring_after_deadline:
@@ -162,9 +162,7 @@ def _deduplicate_findings(
     seen_keys: set[tuple] = set()
     for finding in findings:
         key = (
-            finding.artefact.component_name,
-            finding.artefact.artefact.artefact_name if finding.artefact.artefact else None,
-            finding.artefact.artefact.artefact_type if finding.artefact.artefact else None,
+            finding.artefact.key,
             finding.data.package_name,
             finding.data.cve,
         )
