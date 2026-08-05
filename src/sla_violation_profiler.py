@@ -74,14 +74,17 @@ def iter_policy_violations(
             allowed_time = util.convert_to_timedelta(rescoring.data.allowed_processing_time)
             new_deadline = discovery_date + allowed_time
 
-        is_late = bool(deadline and rescoring_creation_date.date() > deadline.date())
+        is_rescoring_after_deadline = bool(
+            deadline and rescoring_creation_date.date() > deadline.date(),
+        )
 
-        if is_late:
+        if is_rescoring_after_deadline:
             event_type = odg.model.SlaViolationTraceEventType.VIOLATION_RESCORING_AFTER_DEADLINE
+            new_deadline_str = new_deadline.date() if new_deadline else 'waived'
             rescoring_comment = (
                 f'Rescoring by {rescoring.data.user.username} on '
                 f'{rescoring_creation_date.date()} was submitted after '
-                f'deadline {deadline.date()}'
+                f'deadline {deadline.date()}; new deadline: {new_deadline_str}'
             )
         elif new_deadline is not None and new_deadline != deadline:
             event_type = odg.model.SlaViolationTraceEventType.RESCORING
@@ -106,12 +109,12 @@ def iter_policy_violations(
                 event_type=event_type,
                 date=rescoring_creation_date,
                 severity=rescoring.data.severity,
-                deadline=deadline if is_late else new_deadline,
+                deadline=deadline if is_rescoring_after_deadline else new_deadline,
                 comment=rescoring_comment,
             ),
         )
 
-        if is_late:
+        if is_rescoring_after_deadline:
             yield odg.model.SlaViolation(
                 finding=odg.model.RescoringVulnerabilityFinding(
                     package_name=finding.data.package_name,
@@ -155,8 +158,8 @@ def iter_policy_violations(
 
 def _deduplicate_findings(
     findings: list[odg.model.ArtefactMetadata],
-) -> list[odg.model.ArtefactMetadata]:
-    seen: dict[tuple, odg.model.ArtefactMetadata] = {}
+) -> collections.abc.Generator[odg.model.ArtefactMetadata, None, None]:
+    seen_keys: set[tuple] = set()
     for finding in findings:
         key = (
             finding.artefact.component_name,
@@ -165,15 +168,10 @@ def _deduplicate_findings(
             finding.data.package_name,
             finding.data.cve,
         )
-        existing = seen.get(key)
-        if existing is None:
-            seen[key] = finding
-        else:
-            existing_date = util.normalise_date(existing.discovery_date)
-            candidate_date = util.normalise_date(finding.discovery_date)
-            if candidate_date < existing_date:
-                seen[key] = finding
-    return list(seen.values())
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        yield finding
 
 
 def iter_version_sla_violations(
